@@ -30,9 +30,9 @@ cycles_left        = 2
 cycles_left_count  = 0
 
 # Instantiate all hardware components.
-#InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
+InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
 #InstMemory  = InstMemory("summation.bin") # Input file for the summation 1-10.
-InstMemory   = InstMemory("input.bin")  
+#InstMemory   = InstMemory("input.bin")  
 RegFile      = RegFile()                
 DataMemory   = DataMemory()             
 InstParser   = InstParser()             
@@ -53,6 +53,8 @@ BypassL1A_MUX  = Mux()
 BypassL1B_MUX  = Mux()
 LW_BypassA_MUX = Mux()
 LW_BypassB_MUX = Mux()
+SW_Bypass0_MUX = Mux()
+SW_Bypass1_MUX = Mux()
 
 
 FD           = Latch(["PC4", "Instr"])
@@ -70,39 +72,6 @@ printer = StatePrinter()
 
 
 while PC != HALT_PC and PC_BEYOND_LIMIT != True:
-    # ---------------------------
-    # Memory access
-    # ---------------------------
-    # Memory Write
-    DataMemory.write_word(EM.output.ALUResult, EM.output.RegRead2, EM.output.MemWrite)
-
-    # Write to the Latch 
-    MW.input.RegRead2  = EM.output.RegRead2
-    MW.input.MemData   = DataMemory.read_word(EM.output.ALUResult, EM.output.MemRead)
-    MW.input.MemtoReg  = EM.output.MemtoReg
-    MW.input.ALUResult = EM.output.ALUResult
-    MW.input.RegDst    = EM.output.RegDst
-    MW.input.RegWrite  = EM.output.RegWrite
-    MW.input.rt        = EM.output.rt
-    MW.input.rd        = EM.output.rd
-    MW.input.PC4       = EM.output.PC4
-    MW.input.InstrName = EM.output.InstrName
-
-    # Collect MEM stage data
-    if EM.output.PC4 != 0 and EM.output.InstrName != "NOP":
-        mem_data = MW.input.MemData if EM.output.MemRead else None
-        written_data = EM.output.RegRead2 if EM.output.MemWrite else None
-        printer.collect_mem(
-            pc=EM.output.PC4 - 4,
-            instr_name=EM.output.InstrName,
-            mem_write=EM.output.MemWrite,
-            mem_read=EM.output.MemRead,
-            mem_data=mem_data,
-            written_data=written_data
-        )
-    else:
-        printer.mem_stage = {}  # Stage not active
-
     # ---------------------------
     # Write Back
     # ---------------------------
@@ -286,7 +255,6 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     if ForwardUnit.LWHazardA1 or ForwardUnit.LWHazardB1:
         print('LW Data Hazard: Forwarding from MEM stage to EX stage')
 
-
     # Bypass Level 0 MUX for ALU Operand A
     BypassL0A_MUX.input0 = DE.output.RegRead1
     BypassL0A_MUX.input1 = EM.output.ALUResult
@@ -303,6 +271,7 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     LW_BypassA_MUX.input0 = BypassL1A_MUX.output
     LW_BypassA_MUX.input1 = MW.output.MemData
     LW_BypassA_MUX.select = ForwardUnit.LWHazardA1
+    LW_BypassA_MUX.evaluate()
 
     ALU.A = LW_BypassA_MUX.output
 
@@ -344,6 +313,18 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     branch_target = DE.output.PC4 + (DE.output.ImmExt << 2)  
     jump_target = ((DE.output.PC4) & 0xF0000000) | (DE.output.Addres << 2)
 
+    # SW Bypass MUX level 0
+    SW_Bypass0_MUX.input0 = DE.output.RegRead2
+    SW_Bypass0_MUX.input1 = EM.output.ALUResult
+    SW_Bypass0_MUX.select = ForwardUnit.SWHazard0
+    SW_Bypass0_MUX.evaluate()
+
+    # SW Bypass MUX level 1
+    SW_Bypass1_MUX.input0 = SW_Bypass0_MUX.output
+    SW_Bypass1_MUX.input1 = MW.output.ALUResult
+    SW_Bypass1_MUX.select = ForwardUnit.SWHazard1
+    SW_Bypass1_MUX.evaluate()
+
     # Write to the Latch
     EM.input.Jump         = DE.output.Jump
     EM.input.RegDst       = DE.output.RegDst
@@ -354,7 +335,7 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     EM.input.RegWrite     = DE.output.RegWrite
     EM.input.BranchTaken  = DE.output.Branch and ALU.zero
     EM.input.RegRead1     = DE.output.RegRead1
-    EM.input.RegRead2     = DE.output.RegRead2
+    EM.input.RegRead2     = SW_Bypass1_MUX.output 
     EM.input.BranchTarget = branch_target
     EM.input.JumpTarget   = jump_target
     EM.input.JumpReg      = DE.output.JumpReg
@@ -378,6 +359,40 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     else:
         printer.exe_stage = {}  # Stage not active
 
+    
+    # ---------------------------
+    # Memory access
+    # ---------------------------
+    # Memory Write
+    DataMemory.write_word(EM.output.ALUResult, EM.output.RegRead2, EM.output.MemWrite)
+
+    # Write to the Latch 
+    MW.input.RegRead2  = EM.output.RegRead2
+    MW.input.MemData   = DataMemory.read_word(EM.output.ALUResult, EM.output.MemRead)
+    MW.input.MemtoReg  = EM.output.MemtoReg
+    MW.input.ALUResult = EM.output.ALUResult
+    MW.input.RegDst    = EM.output.RegDst
+    MW.input.RegWrite  = EM.output.RegWrite
+    MW.input.rt        = EM.output.rt
+    MW.input.rd        = EM.output.rd
+    MW.input.PC4       = EM.output.PC4
+    MW.input.InstrName = EM.output.InstrName
+
+    # Collect MEM stage data
+    if EM.output.PC4 != 0 and EM.output.InstrName != "NOP":
+        mem_data = MW.input.MemData if EM.output.MemRead else None
+        written_data = EM.output.RegRead2 if EM.output.MemWrite else None
+        printer.collect_mem(
+            pc=EM.output.PC4 - 4,
+            instr_name=EM.output.InstrName,
+            mem_write=EM.output.MemWrite,
+            mem_read=EM.output.MemRead,
+            mem_data=mem_data,
+            written_data=written_data
+        )
+    else:
+        printer.mem_stage = {}  # Stage not active
+
     # Print pipeline state in original order
     printer.print_all()
 
@@ -391,19 +406,19 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     # ---------------------------
     # Stats gaining
     # ---------------------------
-    if MW.output.PC4 != 0 and MW.output.InstrName != "NOP":
+    if EM.output.PC4 != 0 and EM.output.InstrName != "NOP":
         total_instructions += 1
 
         # Determining instruction type
-        if MW.output.InstrName in ['add', 'sub', 'jr', 'jalr', 'or', 'and', 'slt', 'srl', 'sll']:
+        if EM.output.InstrName in ['add', 'sub', 'jr', 'jalr', 'or', 'and', 'slt', 'srl', 'sll']:
             num_rtype += 1
-        elif MW.output.InstrName in ['addi', 'lw', 'sw', 'beq']:
+        elif EM.output.InstrName in ['addi', 'lw', 'sw', 'beq']:
             num_itype += 1
-        elif MW.output.InstrName in ['j', 'jal']:
+        elif EM.output.InstrName in ['j', 'jal']:
             num_jtype += 1
 
         # Counting memory access instructions
-        if MW.output.InstrName in ['lw', 'sw']:
+        if EM.output.InstrName in ['lw', 'sw']:
             num_mem_access += 1
 
     # ---------------------------

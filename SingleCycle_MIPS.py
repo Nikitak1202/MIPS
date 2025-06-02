@@ -22,9 +22,9 @@ num_taken_branches = 0
 num_cycles = 0
 
 # Instantiate all hardware components.
-#InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
+InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
 #InstMemory  = InstMemory("summation.bin") # Input file for the summation 1-10.
-InstMemory  = InstMemory("input.bin")  # General input file for thr testing all implemented instructions.
+#InstMemory  = InstMemory("input.bin")  # General input file for thr testing all implemented instructions.
 RegFile     = RegFile()                # 32 registers, with SP (r29) and LR (r31) pre-initialized.
 DataMemory  = DataMemory()             # Data memory block.
 InstParser  = InstParser()             # Parses a 32-bit instruction into its fields.
@@ -112,7 +112,8 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     # ---------------------------
     # Write Back: Update register file if RegWrite is enabled
     # ---------------------------
-    RegFile.write(RegDst_MUX.output, Result_MUX.output)
+    if ControlUnit.RegWrite:
+        RegFile.write(RegDst_MUX.output, Result_MUX.output)
 
     # ---------------------------
     # Memory Write: Update Data Memory if MemWrite is enabled

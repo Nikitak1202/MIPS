@@ -4,13 +4,18 @@ class ForwardUnit:
         self.BypassL1A  = 0
         self.BypassLB0  = 0
         self.BypassLB1  = 0
+
         self.LWHazard0  = 0
         self.LWHazardA1 = 0
-        self.LWHazardB1 = 0  
+        self.LWHazardB1 = 0
 
-    def CreateSignals(self, DE_rs, DE_InstrName, DE_rt,
-                      EM_rd, EM_RegWrite, EM_InstrName, EM_rt,
-                      MW_rd, MW_RegWrite, MW_InstrName, MW_rt):
+        self.SWHazard0  = 0
+        self.SWHazard1 = 0  
+
+
+    def CreateSignals(self,  DE_rs,              DE_InstrName, DE_rt, 
+                             EM_rd, EM_RegWrite, EM_InstrName, EM_rt,
+                             MW_rd, MW_RegWrite, MW_InstrName, MW_rt):
         
         # Bypass Detection for lw-caused data hazard level 0
         Rtype_Intersection0 = EM_InstrName == 'lw'and (DE_InstrName in ['add', 'sub', 'jr', 'jalr', 'or', 'and', 'slt', 'srl', 'sll']) and (EM_rt == DE_rs or EM_rt == DE_rt)
@@ -55,3 +60,15 @@ class ForwardUnit:
             self.BypassLB1 = 1
         else:
             self.BypassLB1 = 0
+
+        # Store Word Hazard Detection level 0
+        if DE_InstrName == 'sw' and EM_RegWrite and (DE_rt == EM_rd):
+            self.SWHazard0 = 1
+        else:
+            self.SWHazard0 = 0
+
+        # Store Word Hazard Detection level 1
+        if DE_InstrName == 'sw' and MW_RegWrite and (DE_rt == MW_rd) and self.SWHazard0 == 0:
+            self.SWHazard1 = 1
+        else:
+            self.SWHazard1 = 0

@@ -25,8 +25,8 @@ jalr_instr = rtype_instruction(2, 0, 31, 0, 0x09)
 jr_instr   = rtype_instruction(1, 0, 0, 0, 0x08)
 
 i_instr1 = itype_instruction(0x08, 0, 5, 10)         # addi: r5 = 10
-i_instr2 = itype_instruction(0x2B, 5, 21, 4)         # sw: store r5 to memory at offset 4
-i_instr3 = itype_instruction(0x23, 5, 8, 4)          # lw: load from memory at offset 4 to r8
+i_instr2 = itype_instruction(0x2B, 5, 5, 2)         # sw: store r5 to memory at offset 4
+i_instr3 = itype_instruction(0x23, 5, 8, 2)          # lw: load from memory at offset 4 to r8
 i_instr4 = itype_instruction(0x04, 14, 21, 10)       # beq 
 i_instr5 = itype_instruction(0x04, 14, 21, 9)        # beq 
 i_instr6 = itype_instruction(0x04, 10, 11, 1)        # beq 

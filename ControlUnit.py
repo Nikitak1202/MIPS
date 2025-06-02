@@ -74,9 +74,9 @@ class ControlUnit:
         elif self.opCode == 0x2B:  # sw
             self.InstrName = 'sw'
             #print(f"Executing {self.InstrName} instruction")
-            self.RegDst   = None
+            self.RegDst   = 0
             self.ALUSrc   = 1
-            self.MemtoReg = None
+            self.MemtoReg = 0
             self.RegWrite = 0
             self.MemRead  = 0
             self.MemWrite = 1
