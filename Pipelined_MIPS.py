@@ -178,6 +178,7 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
         DE.EN = True
         print('Jump occured')
 
+
     # ---------------------------
     # Instruction Decode
     # ---------------------------
@@ -235,6 +236,7 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
         )
     else:
         printer.dec_stage = {}  # Stage not active
+
 
     # ---------------------------
     # Instruction Execution
@@ -403,6 +405,7 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     MW.transfer()
     num_cycles += 1
 
+
     # ---------------------------
     # Stats gaining
     # ---------------------------
@@ -421,6 +424,7 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
         if EM.output.InstrName in ['lw', 'sw']:
             num_mem_access += 1
 
+
     # ---------------------------
     # Print Architectural State
     # ---------------------------
@@ -434,7 +438,6 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
         if word != 0:
             print(f"  Address: 0x{i*4:08X}  Value: 0x{word:08X}")
     print("----------------------------\n\n\n")
-
 
 print(f"Number of cycles: {num_cycles}")
 print(f"Execution time = num_cycles * CYCLE_DURATION = {num_cycles * CYCLE_DURATION}ns")
