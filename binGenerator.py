@@ -21,26 +21,15 @@ r_instr2 = rtype_instruction(11, 21, 14, 0, 0x24)    # and
 r_instr3 = rtype_instruction(12, 21, 11, 0, 0x22)    # sub  
 r_instr4 = rtype_instruction(21, 11, 17, 0, 0x25)    # or  
 r_instr5 = rtype_instruction(22, 21, 20, 0, 0x2A)    # slt 
-jalr_instr = rtype_instruction(2, 0, 31, 0, 0x09)
-jr_instr   = rtype_instruction(1, 0, 0, 0, 0x08)
 
 i_instr1 = itype_instruction(0x08, 0, 5, 10)         # addi: r5 = 10
 i_instr2 = itype_instruction(0x2B, 5, 5, 2)         # sw: store r5 to memory at offset 4
 i_instr3 = itype_instruction(0x23, 5, 8, 2)          # lw: load from memory at offset 4 to r8
-i_instr4 = itype_instruction(0x04, 14, 21, 10)       # beq 
-i_instr5 = itype_instruction(0x04, 14, 21, 9)        # beq 
-i_instr6 = itype_instruction(0x04, 10, 11, 1)        # beq 
-i_instr7 = itype_instruction(0x08, 8, 11, 5)        # addi
-i_instr8 = itype_instruction(0x04, 10, 11, -2)       # beq 
-i_instr9 = itype_instruction(0x08, 1, 1, 72)         # addi 
-i_instr10 = itype_instruction(0x08, 2, 2, 84)        # addi 
-
-j_instr1 = jtype_instruction(0x02, 0x03)             # j
-j_instr2 = jtype_instruction(0x03, 0xF)              # jal
+i_instr4 = itype_instruction(0x08, 8, 11, 5)        # addi
   
 instructions = [
-    i_instr1, i_instr2, i_instr3, i_instr7, i_instr3,
-    r_instr1, r_instr2, r_instr3, r_instr5
+    i_instr1, i_instr2, i_instr3, i_instr4, i_instr3,
+    r_instr1, r_instr2, r_instr3, r_instr4, r_instr5
     ] 
 
 # Save example instructions to a binary file (big-endian format)

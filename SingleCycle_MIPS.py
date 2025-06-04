@@ -22,9 +22,9 @@ num_taken_branches = 0
 num_cycles = 0
 
 # Instantiate all hardware components.
-InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
+#InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
 #InstMemory  = InstMemory("summation.bin") # Input file for the summation 1-10.
-#InstMemory  = InstMemory("input.bin")  # General input file for thr testing all implemented instructions.
+InstMemory  = InstMemory("input.bin")  # General input file for thr testing all implemented instructions.
 RegFile     = RegFile()                # 32 registers, with SP (r29) and LR (r31) pre-initialized.
 DataMemory  = DataMemory()             # Data memory block.
 InstParser  = InstParser()             # Parses a 32-bit instruction into its fields.

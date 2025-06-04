@@ -30,9 +30,9 @@ cycles_left        = 2
 cycles_left_count  = 0
 
 # Instantiate all hardware components.
-InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
+#InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
 #InstMemory  = InstMemory("summation.bin") # Input file for the summation 1-10.
-#InstMemory   = InstMemory("input.bin")  
+InstMemory   = InstMemory("input.bin")  
 RegFile      = RegFile()                
 DataMemory   = DataMemory()             
 InstParser   = InstParser()             
