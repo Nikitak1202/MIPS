@@ -1,74 +1,123 @@
+# -------------------------------------------------------------
+# Forwarding / Hazard-detection unit
+# -------------------------------------------------------------
+# All comments are now in English.
 class ForwardUnit:
     def __init__(self):
-        self.BypassL0A  = 0
-        self.BypassL1A  = 0
-        self.BypassLB0  = 0
-        self.BypassLB1  = 0
+        # ALU-operand forwarding
+        self.BypassL0A = self.BypassL1A = 0
+        self.BypassLB0 = self.BypassLB1 = 0
 
-        self.LWHazard0  = 0
-        self.LWHazardA1 = 0
-        self.LWHazardB1 = 0
+        # Hazards caused by a preceding lw
+        self.LWHazard0 = self.LWHazardA1 = self.LWHazardB1 = 0
 
-        self.SWHazard0  = 0
-        self.SWHazard1 = 0  
+        # Hazards for sw (rt – data to store, rs – base address)
+        self.SWHazardRT0 = self.SWHazardRT1 = 0
+        self.SWHazardRS0 = self.SWHazardRS1 = 0
 
 
-    def CreateSignals(self,  DE_rs,              DE_InstrName, DE_rt, 
+    def CreateSignals(self,  DE_rs,              DE_InstrName, DE_rt,
                              EM_rd, EM_RegWrite, EM_InstrName, EM_rt,
                              MW_rd, MW_RegWrite, MW_InstrName, MW_rt):
-        
-        # Bypass Detection for lw-caused data hazard level 0
-        Rtype_Intersection0 = EM_InstrName == 'lw'and (DE_InstrName in ['add', 'sub', 'jr', 'jalr', 'or', 'and', 'slt', 'srl', 'sll']) and (EM_rt == DE_rs or EM_rt == DE_rt)
-        ItypeIntersection0 = EM_InstrName == 'lw'and (DE_InstrName in ['addi', 'lw', 'sw', 'beq']) and EM_rt == DE_rs
-        if Rtype_Intersection0 or ItypeIntersection0:
-            self.LWHazard0 = 1
-        else:
-            self.LWHazard0 = 0
 
-        # Bypass Detection for lw-caused data hazard level 1 ALU operand A
-        Rtype_IntersectionA1 = MW_InstrName == 'lw' and (DE_InstrName in ['add', 'sub', 'jr', 'jalr', 'or', 'and', 'slt', 'srl', 'sll']) and MW_rt == DE_rs # MW_rt == DE_rt
-        ItypeIntersectionA1 = MW_InstrName == 'lw' and (DE_InstrName in ['addi', 'lw', 'sw', 'beq']) and MW_rt == DE_rs
-        if Rtype_IntersectionA1 or ItypeIntersectionA1:
-            self.LWHazardA1 = 1  
-        else:
-            self.LWHazardA1 = 0
+        # ---------------------------------------------------------
+        # 1. Determine the effective write-back register number
+        #    (rt for  lw / addi, rd for every R-type instruction)
+        # ---------------------------------------------------------
+        EM_WB = EM_rt if EM_InstrName in ['lw', 'addi'] else EM_rd
+        MW_WB = MW_rt if MW_InstrName in ['lw', 'addi'] else MW_rd
 
-        # Bypass Detection for lw-caused data hazard level 1 ALU operand B
-        if MW_InstrName == 'lw' and (DE_InstrName in ['add', 'sub', 'jr', 'jalr', 'or', 'and', 'slt', 'srl', 'sll']) and MW_rt == DE_rt:
-            self.LWHazardB1 = 1  
-        else:
-            self.LWHazardB1 = 0
+        # ---------------------------------------------------------
+        # Level-0 hazard: lw in EX/MEM, current instr in ID/EX
+        # ---------------------------------------------------------
+        Rtype_Intersection0 = (
+            EM_InstrName == 'lw' and
+            DE_InstrName in ['add', 'sub', 'jr', 'jalr',
+                             'or',  'and', 'slt', 'srl', 'sll'] and
+            (EM_rt == DE_rs or EM_rt == DE_rt)
+        )
+        ItypeIntersection0  = (
+           (EM_InstrName == 'lw' and
+            DE_InstrName in ['addi', 'beq'] and
+            EM_rt == DE_rs)
+            or 
+           (EM_InstrName == 'lw' and DE_InstrName == 'lw')
+        )
+        SW_LW_Intersection0 = (
+            EM_InstrName == 'lw' and DE_InstrName == 'sw' and
+            (EM_rt == DE_rs or EM_rt == DE_rt)
+        )
+        self.LWHazard0 = int(
+            Rtype_Intersection0 or ItypeIntersection0 or SW_LW_Intersection0
+        )
 
-        # Bypass Logic for ALU Operand A
-        if EM_RegWrite and (EM_rd == DE_rs):
-            self.BypassL0A = 1
-        else:
-            self.BypassL0A = 0
+        # ---------------------------------------------------------
+        # Level-1 hazard for operand A (rs)
+        # ---------------------------------------------------------
+        Rtype_A1 = (
+            MW_InstrName == 'lw' and
+            DE_InstrName in ['add', 'sub', 'jr', 'jalr',
+                             'or',  'and', 'slt', 'srl', 'sll'] and
+            MW_rt == DE_rs
+        )
+        Itype_A1 = (
+            MW_InstrName == 'lw' and
+            DE_InstrName in ['addi', 'lw', 'beq'] and
+            MW_rt == DE_rs
+        )
+        SW_LW_A1 = (
+            MW_InstrName == 'lw' and DE_InstrName == 'sw' and
+            (MW_rt == DE_rs or MW_rt == DE_rt)
+        )
+        self.LWHazardA1 = int(Rtype_A1 or Itype_A1 or SW_LW_A1)
 
-        if MW_RegWrite and (MW_rd == DE_rs) and self.BypassL0A == 0:
-            self.BypassL1A = 1
-        else:
-            self.BypassL1A = 0
+        # ---------------------------------------------------------
+        # Level-1 hazard for operand B (rt)
+        # (beq was already present)
+        # ---------------------------------------------------------
+        self.LWHazardB1 = int(
+            MW_InstrName == 'lw' and
+            DE_InstrName in ['add', 'sub', 'jr', 'jalr',
+                             'or',  'and', 'slt', 'srl', 'sll', 'beq'] and
+            MW_rt == DE_rt
+        )
 
-        # Bypass Logic for ALU Operand B
-        if EM_RegWrite and (EM_rd == DE_rt):
-            self.BypassLB0 = 1
-        else:
-            self.BypassLB0 = 0
-        
-        if MW_RegWrite and (MW_rd == DE_rt) and self.BypassLB0 == 0:
-            self.BypassLB1 = 1
-        else:
-            self.BypassLB1 = 0
+        # ---------------------------------------------------------
+        # Forwarding logic for ALU operand A (rs)
+        # ---------------------------------------------------------
+        self.BypassL0A = int(EM_RegWrite and EM_WB == DE_rs)
+        self.BypassL1A = int(
+            MW_RegWrite and MW_WB == DE_rs and not self.BypassL0A
+        )
 
-        # Store Word Hazard Detection level 0
-        if DE_InstrName == 'sw' and EM_RegWrite and (DE_rt == EM_rd):
-            self.SWHazard0 = 1
-        else:
-            self.SWHazard0 = 0
+        # ---------------------------------------------------------
+        # Forwarding logic for ALU operand B (rt)
+        # ---------------------------------------------------------
+        self.BypassLB0 = int(EM_RegWrite and EM_WB == DE_rt)
+        self.BypassLB1 = int(
+            MW_RegWrite and MW_WB == DE_rt and not self.BypassLB0
+        )
 
-        # Store Word Hazard Detection level 1
-        if DE_InstrName == 'sw' and MW_RegWrite and (DE_rt == MW_rd) and self.SWHazard0 == 0:
-            self.SWHazard1 = 1
-        else:
-            self.SWHazard1 = 0
+        # ---------------------------------------------------------
+        # sw-related hazards
+        #   rt – data word to store
+        #   rs – base address
+        # ---------------------------------------------------------
+        # Data (rt) – level 0
+        self.SWHazardRT0 = int(
+            DE_InstrName == 'sw' and EM_RegWrite and DE_rt == EM_WB
+        )
+        # Data (rt) – level 1
+        self.SWHazardRT1 = int(
+            DE_InstrName == 'sw' and MW_RegWrite and DE_rt == MW_WB
+            and not self.SWHazardRT0
+        )
+        # Address base (rs) – level 0
+        self.SWHazardRS0 = int(
+            DE_InstrName == 'sw' and EM_RegWrite and DE_rs == EM_WB
+        )
+        # Address base (rs) – level 1
+        self.SWHazardRS1 = int(
+            DE_InstrName == 'sw' and MW_RegWrite and DE_rs == MW_WB
+            and not self.SWHazardRS0
+        )

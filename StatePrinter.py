@@ -97,9 +97,5 @@ class StatePrinter:
         if self.wb_stage:
             print(f"PC               = {self.wb_stage['pc']}")
             print(f"Instruction Name = {self.wb_stage['instr_name']}")
-            if self.wb_stage['memto_reg']:
-                print(f'Writting {self.wb_stage["result"]} to RegFile from Memory at address {self.wb_stage["target_reg"]}')
-            else:
-                print(f'Writting {self.wb_stage["result"]} to RegFile from ALU at address {self.wb_stage["target_reg"]}')
         else:
             print("Stage not active")

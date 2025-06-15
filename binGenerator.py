@@ -96,6 +96,75 @@ def create_factorial_program(filename):
             f.write(struct.pack('>I', instr))
 
 
+def create_sort_program(filename: str):
+    code = []
+
+    # ---------------------------------------------------------------------
+    # ①  Initial unsorted integers
+    #     addr  0 ← 7,  addr  4 ← 2,  addr  8 ← 5,  addr 12 ← 1
+    #     addr 16 ← 4,  addr 20 ← 6,  addr 24 ← 0,  addr 28 ← 3
+    # ---------------------------------------------------------------------
+    init_values = [7, 6, 5, 4, 3, 2, 1]  # Initial values in descending order
+    for idx, val in enumerate(init_values):
+        code += [
+            itype_instruction(0x08, 0, 2, val),      # addi r2, r0, imm
+            itype_instruction(0x2B, 0, 2, idx * 4)   # sw   r2, offset(r0)
+        ]
+
+    # helper : compare–swap memory words at addresses A,B
+    def cmp_swap(addr_a, addr_b):
+        nonlocal code
+        code += [
+            itype_instruction(0x23, 0, 2, addr_a),   # lw r2, A(r0)
+            itype_instruction(0x23, 0, 3, addr_b),   # lw r3, B(r0)
+            rtype_instruction(3, 2, 4, 0, 0x2A),     # slt r4, r3, r2  (B<A?)
+            itype_instruction(0x04, 4, 0, 2),        # beq r4,r0,+2    (skip if ordered)
+            itype_instruction(0x2B, 0, 3, addr_a),   # sw r3, A(r0)
+            itype_instruction(0x2B, 0, 2, addr_b),   # sw r2, B(r0)
+        ]
+
+    # ---------------------------------------------------------------------
+    # ②  Unrolled bubble-sort for 7 elements
+    #     Pass-k performs (8-k) adjacent compare-swaps
+    # ---------------------------------------------------------------------
+    addr = [i * 4 for i in range(8)]
+
+    # pass-1  → 7 swaps
+    for i in range(7): cmp_swap(addr[i], addr[i+1])
+
+    # pass-2  → 6 swaps
+    for i in range(6): cmp_swap(addr[i], addr[i+1])
+
+    # pass-3  → 5 swaps
+    for i in range(5): cmp_swap(addr[i], addr[i+1])
+
+    # pass-4  → 4 swaps
+    for i in range(4): cmp_swap(addr[i], addr[i+1])
+
+    # pass-5  → 3 swaps
+    for i in range(3): cmp_swap(addr[i], addr[i+1])
+
+    # pass-6  → 2 swaps
+    for i in range(2): cmp_swap(addr[i], addr[i+1])
+
+    # pass-7  → 1 swap
+    cmp_swap(addr[0], addr[1])
+
+    # ---------------------------------------------------------------------
+    # ③  return
+    # ---------------------------------------------------------------------
+    code.append(rtype_instruction(31, 0, 0, 0, 0x08))  # jr r31
+
+    # ---------------------------------------------------------------------
+    # ④  write big-endian binary file
+    # ---------------------------------------------------------------------
+    import struct
+    with open(filename, "wb") as f:
+        for instr in code:
+            f.write(struct.pack(">I", instr))
+
+
 # Generate binary files for both programs
 create_summation_program('summation.bin')
 create_factorial_program('factorial.bin')
+create_sort_program("sort.bin")

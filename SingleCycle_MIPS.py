@@ -20,17 +20,21 @@ num_jtype = 0
 num_mem_access = 0
 num_taken_branches = 0
 num_cycles = 0
+num_cache_hits = 0
+num_cache_misses = 0
 
 # Instantiate all hardware components.
 #InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
 #InstMemory  = InstMemory("summation.bin") # Input file for the summation 1-10.
-InstMemory  = InstMemory("input.bin")  # General input file for thr testing all implemented instructions.
-RegFile     = RegFile()                # 32 registers, with SP (r29) and LR (r31) pre-initialized.
-DataMemory  = DataMemory()             # Data memory block.
-InstParser  = InstParser()             # Parses a 32-bit instruction into its fields.
-ControlUnit = ControlUnit()            # Generates control signals based on opCode & funct.
-ALU         = ALU()                    # The arithmetic and logic unit.
-SignExtend  = SignExtend()             # Sign extends 16-bit immediates to 32 bits.
+#InstMemory  = InstMemory("input.bin")     # General input file for thr testing all implemented instructions.
+InstMemory  = InstMemory("sort.bin")     # Input file for sorting 3 numbers in memory.
+
+RegFile     = RegFile()                    # 32 registers, with SP (r29) and LR (r31) pre-initialized.
+DataMemory  = DataMemory(num_cachelines=1, num_ways=1, num_words=2)                 
+InstParser  = InstParser()                 # Parses a 32-bit instruction into its fields.
+ControlUnit = ControlUnit()                # Generates control signals based on opCode & funct.
+ALU         = ALU()                        # The arithmetic and logic unit.
+SignExtend  = SignExtend()                 # Sign extends 16-bit immediates to 32 bits.
 
 while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     # ---------------------------
@@ -103,9 +107,22 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     # ---------------------------
     # Writeback MUX: Select data to write back to register file
     # ---------------------------
+    if ControlUnit.MemRead:
+        MemData, CacheRead = DataMemory.read_word(ALU.result, ControlUnit.MemRead)
+        if CacheRead:
+            num_cache_hits += 1
+            print(f"Cache hit at address {ALU.result:#010x}, data read: {MemData:#010x}.")
+            num_cycles += 1
+        else:
+            num_cache_misses += 1
+            print(f"Cache miss at address {ALU.result:#010x}, reading from memory.")
+            num_cycles += 1000
+    else:
+        MemData = 0
+    
     Result_MUX = Mux()
     Result_MUX.input0 = ALU.result       
-    Result_MUX.input1 = DataMemory.read_word(ALU.result, ControlUnit.MemRead)
+    Result_MUX.input1 = MemData
     Result_MUX.select = ControlUnit.MemtoReg  # 0 → ALU result, 1 → memory data.
     Result_MUX.evaluate()
 
@@ -146,7 +163,9 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     PC = Jump_MUX.output
 
     # Saving Link for jal and jalr 
-    if ControlUnit.opCode == 0x03 or ControlUnit.funct == 0x09:
+    is_jal   = (ControlUnit.opCode == 0x03)
+    is_jalr  = (ControlUnit.opCode == 0x00 and ControlUnit.funct == 0x09)
+    if is_jal or is_jalr:
         RegFile.write(31, next_pc)
 
     # Update PC for jr and jalr
@@ -181,5 +200,7 @@ print(f"Number of R-type instructions: {num_rtype}")
 print(f"Number of I-type instructions: {num_itype}")
 print(f"Number of J-type instructions: {num_jtype}")
 print(f"Number of memory access instructions: {num_mem_access}")
+print(f"Number of cache hits: {num_cache_hits}")
+print(f"Number of cache misses: {num_cache_misses}")
 print(f"Number of taken branches: {num_taken_branches}")
 print(f"Final return value (R2): 0x{RegFile.read(2):08X}")

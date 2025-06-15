@@ -23,6 +23,8 @@ num_rtype          = 0
 num_itype          = 0
 num_jtype          = 0
 num_mem_access     = 0
+num_cache_hits     = 0
+num_cache_misses   = 0
 num_taken_branches = 0
 num_cycles         = 0
 # Flag of amount of cycles to wait after fetching last one to let instructions inside the pipeline to finish
@@ -32,29 +34,33 @@ cycles_left_count  = 0
 # Instantiate all hardware components.
 #InstMemory  = InstMemory("factorial.bin") # Input file for the computing 4th factorial. 
 #InstMemory  = InstMemory("summation.bin") # Input file for the summation 1-10.
-InstMemory   = InstMemory("input.bin")  
+#InstMemory   = InstMemory("input.bin")  
+InstMemory  = InstMemory("sort.bin")     # Input file for sorting 3 numbers in memory.
+
 RegFile      = RegFile()                
-DataMemory   = DataMemory()             
+DataMemory   = DataMemory(num_cachelines=1, num_ways=1, num_words=1)      
 InstParser   = InstParser()             
 ControlUnit  = ControlUnit()            
 ALU          = ALU()                    
 SignExtend   = SignExtend()   
 ForwardUnit  = ForwardUnit()    
 
-ALUSrc_MUX     = Mux()
-RegDst_MUX     = Mux()
-Result_MUX     = Mux()
-Branch_MUX     = Mux()
-Jump_MUX       = Mux()
-Jump_Reg_MUX   = Mux()
-BypassL0A_MUX  = Mux()
-BypassL0B_MUX  = Mux()
-BypassL1A_MUX  = Mux()
-BypassL1B_MUX  = Mux()
-LW_BypassA_MUX = Mux()
-LW_BypassB_MUX = Mux()
-SW_Bypass0_MUX = Mux()
-SW_Bypass1_MUX = Mux()
+ALUSrc_MUX        = Mux()
+RegDst_MUX        = Mux()
+Result_MUX        = Mux()
+Branch_MUX        = Mux()
+Jump_MUX          = Mux()
+Jump_Reg_MUX      = Mux()
+BypassL0A_MUX     = Mux()
+BypassL0B_MUX     = Mux()
+BypassL1A_MUX     = Mux()
+BypassL1B_MUX     = Mux()
+LW_BypassA_MUX    = Mux()
+LW_BypassB_MUX    = Mux()
+SW_Bypass0_RT_MUX = Mux()
+SW_Bypass1_RT_MUX = Mux()
+SW_Bypass0_RS_MUX = Mux()
+SW_Bypass1_RS_MUX = Mux()
 
 
 FD           = Latch(["PC4", "Instr"])
@@ -106,6 +112,20 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     # ---------------------------
     # Instruction Fetch
     # ---------------------------
+    # Stats and branch\jump affected Latches handling
+    if EM.output.BranchTaken:
+        FD.flush()
+        DE.flush()
+        EM.flush()
+        FD.EN = True
+        num_taken_branches += 1
+        print('Branch is taken')
+
+    elif EM.output.Jump:
+        FD.EN = True
+        DE.EN = True
+        print('Jump occured')
+
     # NEXT PC CALCULATION
     # Branch MUX
     Branch_MUX.input0 = PC
@@ -165,19 +185,6 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     # PC increasing
     PC += 4
 
-    # Stats and branch\jump affected Latches handling
-    if EM.output.BranchTaken:
-        DE.flush()
-        EM.flush()
-        FD.EN = True
-        num_taken_branches += 1
-        print('Branch is taken')
-
-    elif EM.output.Jump:
-        FD.EN = True
-        DE.EN = True
-        print('Jump occured')
-
 
     # ---------------------------
     # Instruction Decode
@@ -201,7 +208,9 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     SignExtend.extend() 
 
     # Saving Link for jal and jalr 
-    if ControlUnit.opCode == 0x03 or ControlUnit.funct == 0x09:
+    is_jal   = (ControlUnit.opCode == 0x03)
+    is_jalr  = (ControlUnit.opCode == 0x00 and ControlUnit.funct == 0x09)
+    if is_jal or is_jalr:
         RegFile.write(31, FD.output.PC4) 
 
     # Write to the Latch
@@ -315,17 +324,29 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     branch_target = DE.output.PC4 + (DE.output.ImmExt << 2)  
     jump_target = ((DE.output.PC4) & 0xF0000000) | (DE.output.Addres << 2)
 
-    # SW Bypass MUX level 0
-    SW_Bypass0_MUX.input0 = DE.output.RegRead2
-    SW_Bypass0_MUX.input1 = EM.output.ALUResult
-    SW_Bypass0_MUX.select = ForwardUnit.SWHazard0
-    SW_Bypass0_MUX.evaluate()
+    # SW Bypass for rt MUX level 0
+    SW_Bypass0_RT_MUX.input0 = DE.output.RegRead2
+    SW_Bypass0_RT_MUX.input1 = EM.output.ALUResult 
+    SW_Bypass0_RT_MUX.select = ForwardUnit.SWHazardRT0
+    SW_Bypass0_RT_MUX.evaluate()
 
-    # SW Bypass MUX level 1
-    SW_Bypass1_MUX.input0 = SW_Bypass0_MUX.output
-    SW_Bypass1_MUX.input1 = MW.output.ALUResult
-    SW_Bypass1_MUX.select = ForwardUnit.SWHazard1
-    SW_Bypass1_MUX.evaluate()
+    # SW Bypass MUX for rt level 1
+    SW_Bypass1_RT_MUX.input0 = SW_Bypass0_RT_MUX.output
+    SW_Bypass1_RT_MUX.input1 = MW.output.MemData if MW.output.InstrName == "lw" else MW.output.ALUResult 
+    SW_Bypass1_RT_MUX.select = ForwardUnit.SWHazardRT1
+    SW_Bypass1_RT_MUX.evaluate()
+
+    # SW Bypass for rs MUX level 0
+    SW_Bypass0_RS_MUX.input0 = DE.output.RegRead1
+    SW_Bypass0_RS_MUX.input1 = EM.output.ALUResult
+    SW_Bypass0_RS_MUX.select = ForwardUnit.SWHazardRS0
+    SW_Bypass0_RS_MUX.evaluate()
+
+    # SW Bypass MUX for rs level 1
+    SW_Bypass1_RS_MUX.input0 = SW_Bypass0_RS_MUX.output
+    SW_Bypass1_RS_MUX.input1 = MW.output.MemData if MW.output.InstrName == "lw" else MW.output.ALUResult
+    SW_Bypass1_RS_MUX.select = ForwardUnit.SWHazardRS1
+    SW_Bypass1_RS_MUX.evaluate()
 
     # Write to the Latch
     EM.input.Jump         = DE.output.Jump
@@ -336,8 +357,8 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     EM.input.MemWrite     = DE.output.MemWrite
     EM.input.RegWrite     = DE.output.RegWrite
     EM.input.BranchTaken  = DE.output.Branch and ALU.zero
-    EM.input.RegRead1     = DE.output.RegRead1
-    EM.input.RegRead2     = SW_Bypass1_MUX.output 
+    EM.input.RegRead1     = SW_Bypass1_RS_MUX.output 
+    EM.input.RegRead2     = SW_Bypass1_RT_MUX.output 
     EM.input.BranchTarget = branch_target
     EM.input.JumpTarget   = jump_target
     EM.input.JumpReg      = DE.output.JumpReg
@@ -368,9 +389,23 @@ while PC != HALT_PC and PC_BEYOND_LIMIT != True:
     # Memory Write
     DataMemory.write_word(EM.output.ALUResult, EM.output.RegRead2, EM.output.MemWrite)
 
+    # Memory Read
+    if EM.output.MemRead:
+        MemData, CacheRead = DataMemory.read_word(EM.output.ALUResult, EM.output.MemRead)
+        if CacheRead:
+            num_cache_hits += 1
+            print(f"Cache hit at address {EM.output.ALUResult:#010x}, data read: {MemData:#010x}.")
+            num_cycles += 1
+        else:
+            num_cache_misses += 1
+            print(f"Cache miss at address {EM.output.ALUResult:#010x}, reading from memory.")
+            num_cycles += 1000  
+    else:
+        MemData = 0
+
     # Write to the Latch 
     MW.input.RegRead2  = EM.output.RegRead2
-    MW.input.MemData   = DataMemory.read_word(EM.output.ALUResult, EM.output.MemRead)
+    MW.input.MemData   = MemData
     MW.input.MemtoReg  = EM.output.MemtoReg
     MW.input.ALUResult = EM.output.ALUResult
     MW.input.RegDst    = EM.output.RegDst
@@ -446,5 +481,7 @@ print(f"Number of R-type instructions: {num_rtype}")
 print(f"Number of I-type instructions: {num_itype}")
 print(f"Number of J-type instructions: {num_jtype}")
 print(f"Number of memory access instructions: {num_mem_access}")
+print(f"Number of cache hits: {num_cache_hits}")
+print(f"Number of cache misses: {num_cache_misses}")
 print(f"Number of taken branches: {num_taken_branches}")
 print(f"Final return value (R2): 0x{RegFile.read(2):08X}")
