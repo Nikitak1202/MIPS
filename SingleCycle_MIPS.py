@@ -30,7 +30,7 @@ num_cache_misses = 0
 InstMemory  = InstMemory("sort.bin")     # Input file for sorting 3 numbers in memory.
 
 RegFile     = RegFile()                    # 32 registers, with SP (r29) and LR (r31) pre-initialized.
-DataMemory  = DataMemory(num_cachelines=1, num_ways=1, num_words=2)                 
+DataMemory  = DataMemory()                 
 InstParser  = InstParser()                 # Parses a 32-bit instruction into its fields.
 ControlUnit = ControlUnit()                # Generates control signals based on opCode & funct.
 ALU         = ALU()                        # The arithmetic and logic unit.

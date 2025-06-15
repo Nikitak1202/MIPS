@@ -38,7 +38,7 @@ cycles_left_count  = 0
 InstMemory  = InstMemory("sort.bin")     # Input file for sorting 3 numbers in memory.
 
 RegFile      = RegFile()                
-DataMemory   = DataMemory(num_cachelines=1, num_ways=1, num_words=1)      
+DataMemory   = DataMemory()      
 InstParser   = InstParser()             
 ControlUnit  = ControlUnit()            
 ALU          = ALU()                    
