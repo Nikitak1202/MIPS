@@ -42,8 +42,8 @@ This repository contains a Python implementation of both a **Single-cycle** and 
 ## Installation
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd <repository-directory>
+git clone https://github.com/Nikitak1202/MIPS.git
+cd MIPS
 ```
 
 2. (Optional) Generate new binary instruction files using:
